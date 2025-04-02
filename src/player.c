@@ -316,22 +316,25 @@ void printTitleWithDelay(const char *text, int delay, int maxWidth) {
         fflush(stdout);
     }
 
-void printCentered(const char *text) {
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);  // Get terminal size
-        int terminalWidth = w.ws_col;
-        int textLength = strlen(text);
+void printCentered(const char *prefix, const char *text) {
+        int termWidth = 80; // Default terminal width if detection fails
     
-        if (textLength > terminalWidth) {
-            printf("%.*s\n", terminalWidth, text); // Trim if too long
-            return;
+        // Try to get actual terminal width
+        FILE *fp = popen("tput cols", "r");
+        if (fp) {
+            fscanf(fp, "%d", &termWidth);
+            pclose(fp);
         }
     
-        if (strnlen(text, METADATA_MAX_LENGTH) > 0) {
-                printf("%*s%s\n", (terminalWidth - textLength) / 2, "", text);
-        } else {
-                printf("\n");   
-        }
+        // Create a new string with the prefix
+        char fullText[256]; // Ensure buffer is large enough
+        snprintf(fullText, sizeof(fullText), "%s %s", prefix, text);
+    
+        int textLength = strlen(fullText);
+        int padding = (termWidth - textLength) / 2;
+        if (padding < 0) padding = 0; // Prevent negative padding
+    
+        printf("%*s%s\n", padding, "", fullText);
 }
 
 void printBasicMetadata(TagSettings const *metadata, UISettings *ui)
@@ -341,8 +344,8 @@ void printBasicMetadata(TagSettings const *metadata, UISettings *ui)
         int maxWidth = textWidth; // term_w - 3 - (indent * 2);
         printf("\n");
 
-        printCentered(metadata->artist);
-        printCentered(metadata->album);
+        printCentered("", metadata->artist);
+        printCentered("", metadata->album);
         if (strnlen(metadata->date, METADATA_MAX_LENGTH) > 0)
         {
                 printBlankSpaces(indent);
@@ -350,9 +353,9 @@ void printBasicMetadata(TagSettings const *metadata, UISettings *ui)
                 char yearStr[5];  // Safer to define an explicit size
                 snprintf(yearStr, sizeof(yearStr), "%d", year);
                 if (year == -1) {
-                        printCentered(metadata->date);
+                        printCentered(" ", metadata->date);
                 } else {
-                        printCentered(yearStr);
+                        printCentered(" ", yearStr);
                 }
         }
         else

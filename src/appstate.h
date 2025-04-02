@@ -47,6 +47,7 @@ typedef struct
         int mouseAltScrollUpAction;                     // Mouse scroll up + alt action
         int mouseAltScrollDownAction;                   // Mouse scroll down + alt action
         PixelData color;                                // The current color, when using album derived colors
+        PixelData color2;                               // The other album derived color.
         bool useConfigColors;                           // Use colors stored in config file or use an album derived color
         bool coverEnabled;                              // Show covers or not
         bool uiEnabled;                                 // Show ui or not

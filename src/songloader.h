@@ -55,6 +55,9 @@ typedef struct
         unsigned char red;
         unsigned char green;
         unsigned char blue;
+        unsigned char red2;
+        unsigned char green2;
+        unsigned char blue2;
         TagSettings *metadata;
         unsigned char *cover;
         int coverWidth;

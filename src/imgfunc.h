@@ -24,4 +24,4 @@ unsigned char *getBitmap(const char *image_path, int *width, int *height);
 
 void printSquareBitmapCentered(unsigned char *pixels, int width, int height, int baseHeight);
 
-int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b);
+int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *r2, unsigned char *g2, unsigned char *b2);

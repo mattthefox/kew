@@ -360,7 +360,7 @@ void printBasicMetadata(TagSettings const *metadata, UISettings *ui)
         cursorJump(4);
         if (strnlen(metadata->title, METADATA_MAX_LENGTH) > 0)
         {
-                PixelData pixel = increaseLuminosity(ui->color, 20);
+                PixelData pixel = ui->color2;
 
                 if (ui->useConfigColors)
                 {
@@ -1070,28 +1070,26 @@ void resetRadioSearchResult(void)
 
 void printElapsedBars(int elapsedBars, int numProgressBars, PixelData color, int height, bool useConfigColors)
 {
-        if (!useConfigColors)
-        {
-                PixelData tmp = increaseLuminosity(color, round(height * 4));
-                printf("\033[38;2;%d;%d;%dm", tmp.r, tmp.g, tmp.b);
-        }
-        else
-        {
-                setDefaultTextColor();
-        }
         printBlankSpaces(indent);
         printf(" ");
+        PixelData tmp = increaseLuminosity(color, round(height * 4));
         for (int i = 0; i < numProgressBars; i++)
         {
-                if (i == 0)
-                {
-                        printf("■ ");
-                }
-                else if (i < elapsedBars)
-                        printf("■ ");
-                else
-                {
-                        printf("= ");
+                if (i == 0 || i < elapsedBars) {
+                        // color, filled in.
+                        if (!useConfigColors)
+                        {
+                                tmp = increaseLuminosity(tmp, (double)(i) / 4);
+                                printf("\033[38;2;%d;%d;%dm", tmp.r, tmp.g, tmp.b);
+                        }
+                        else
+                        {
+                                setDefaultTextColor();
+                        }
+                        printf("━");
+                } else {
+                        printf("\033[38;2;255;255;255m"); // white, not filled in.
+                        printf("━");
                 }
         }
 }
@@ -1111,7 +1109,7 @@ void printVisualizer(double elapsedSeconds, AppState *state)
                 visualizerWidth = (visualizerWidth < textWidth && textWidth < term_w - 2) ? textWidth : visualizerWidth;
                 visualizerWidth = (visualizerWidth > term_w - 2) ? term_w - 2 : visualizerWidth;
                 visualizerWidth -= 1;
-                uis->numProgressBars = (int)visualizerWidth / 2;
+                uis->numProgressBars = (int)visualizerWidth;// / 2;
                 double duration = getCurrentSongDuration();
 
 #ifndef __APPLE__
@@ -1571,9 +1569,14 @@ int printPlayer(SongData *songdata, double elapsedSeconds, AppSettings *settings
 
                 if (songdata != NULL && songdata->metadata != NULL && !songdata->hasErrors && (songdata->hasErrors < 1))
                 {
+                        // Color 1
                         ui->color.r = songdata->red;
                         ui->color.g = songdata->green;
                         ui->color.b = songdata->blue;
+                        // Color 2
+                        ui->color2.r = songdata->red2;
+                        ui->color2.g = songdata->green2;
+                        ui->color2.b = songdata->blue2;
                 }
                 else
                 {
@@ -1585,6 +1588,10 @@ int printPlayer(SongData *songdata, double elapsedSeconds, AppSettings *settings
                         ui->color.r = defaultColor;
                         ui->color.g = defaultColor;
                         ui->color.b = defaultColor;
+
+                        ui->color2.r = defaultColor;
+                        ui->color2.g = defaultColor;
+                        ui->color2.b = defaultColor;
                 }
 
                 calcPreferredSize(ui);

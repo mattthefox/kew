@@ -38,6 +38,7 @@ chafafunc.c
 #endif
 
 #define MACRO_STRLEN(s) (sizeof(s) / sizeof(s[0]))
+#define MAX_COLOR_COUNT 10  // Max number of color clusters to consider
 
 typedef struct
 {
@@ -246,23 +247,60 @@ convert_image(const void *pixels, gint pix_width, gint pix_height,
         return printable;
 }
 
-// The function to load and return image data
 unsigned char *getBitmap(const char *image_path, int *width, int *height)
 {
-        if (image_path == NULL)
-                return NULL;
+    if (image_path == NULL)
+        return NULL;
 
-        int channels;
+    int channels;
 
-        unsigned char *image = stbi_load(image_path, width, height, &channels, 4); // Force 4 channels (RGBA)
-        if (!image)
+    // Load the image with original dimensions first
+    unsigned char *image = stbi_load(image_path, width, height, &channels, 4); // Force 4 channels (RGBA)
+    if (!image)
+    {
+        fprintf(stderr, "Failed to load image: %s\n", image_path);
+        return NULL;
+    }
+
+    // Ensure width and height are equal by cropping from the center
+    int min_dim = (*width < *height) ? *width : *height;
+
+    // Calculate the cropping area
+    int crop_x = (*width - min_dim) / 2;
+    int crop_y = (*height - min_dim) / 2;
+
+    // Create a new array to store the square image
+    unsigned char *square_image = (unsigned char *)malloc(min_dim * min_dim * 4);  // RGBA, 4 bytes per pixel
+    if (!square_image)
+    {
+        fprintf(stderr, "Failed to allocate memory for the square image.\n");
+        stbi_image_free(image);
+        return NULL;
+    }
+
+    // Copy pixels to the new square image (cropping the center)
+    for (int y = 0; y < min_dim; y++)
+    {
+        for (int x = 0; x < min_dim; x++)
         {
-                fprintf(stderr, "Failed to load image: %s\n", image_path);
-                return NULL;
+            int src_index = ((crop_y + y) * (*width) + (crop_x + x)) * 4;
+            int dest_index = (y * min_dim + x) * 4;
+            square_image[dest_index + 0] = image[src_index + 0]; // Red
+            square_image[dest_index + 1] = image[src_index + 1]; // Green
+            square_image[dest_index + 2] = image[src_index + 2]; // Blue
+            square_image[dest_index + 3] = image[src_index + 3]; // Alpha
         }
+    }
 
-        return image;
+    // Update the width and height to the square dimensions
+    *width = *height = min_dim;
+
+    // Free the original image since it's no longer needed
+    stbi_image_free(image);
+
+    return square_image;
 }
+
 
 float calcAspectRatio(void)
 {
@@ -382,38 +420,95 @@ void checkIfBrightPixel(unsigned char r, unsigned char g, unsigned char b, bool 
         }
 }
 
-int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b)
+float colorDistance(unsigned char r1, unsigned char g1, unsigned char b1, unsigned char r2, unsigned char g2, unsigned char b2)
 {
-        if (pixels == NULL || width <= 0 || height <= 0)
-        {
-                return -1;
-        }
-
-        int channels = 4; // RGBA format
-
-        bool found = false;
-        int numPixels = width * height;
-
-        for (int i = 0; i < numPixels; i++)
-        {
-                int index = i * channels;
-                unsigned char red = pixels[index + 0];
-                unsigned char green = pixels[index + 1];
-                unsigned char blue = pixels[index + 2];
-
-                checkIfBrightPixel(red, green, blue, &found);
-
-                if (found)
-                {
-                        *r = red;
-                        *g = green;
-                        *b = blue;
-                        break;
-                }
-        }
-
-        return found ? 0 : -1;
+    return sqrtf(powf(r1 - r2, 2) + powf(g1 - g2, 2) + powf(b1 - b2, 2));
 }
+
+// Get the most frequent color in the image (simple average approach)
+int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *r2, unsigned char *g2, unsigned char *b2)
+{
+    if (pixels == NULL || width <= 0 || height <= 0)
+    {
+        return -1;
+    }
+
+    int channels = 4;  // RGBA format
+    int numPixels = width * height;
+
+    // To hold colors (up to MAX_COLOR_COUNT most frequent colors)
+    unsigned char colorBuckets[MAX_COLOR_COUNT][3] = {0};  // RGB
+    int colorCounts[MAX_COLOR_COUNT] = {0};
+
+    // Sampling step: We choose a fraction of pixels to analyze
+    int sampleStep = numPixels / MAX_COLOR_COUNT; 
+
+    for (int i = 0; i < numPixels; i += sampleStep)
+    {
+        int index = i * channels;
+        unsigned char red = pixels[index + 0];
+        unsigned char green = pixels[index + 1];
+        unsigned char blue = pixels[index + 2];
+
+        // Find where to store this color
+        //int foundBucket = -1;
+        for (int j = 0; j < MAX_COLOR_COUNT; j++)
+        {
+            // If this bucket is empty, fill it with this color
+            if (colorCounts[j] == 0)
+            {
+                colorBuckets[j][0] = red;
+                colorBuckets[j][1] = green;
+                colorBuckets[j][2] = blue;
+                colorCounts[j] = 1;
+                //foundBucket = j;
+                break;
+            }
+            // If this color is similar to the bucket, increment its count
+            if (colorDistance(red, green, blue, colorBuckets[j][0], colorBuckets[j][1], colorBuckets[j][2]) < 50.0f)
+            {
+                colorBuckets[j][0] = (colorBuckets[j][0] * colorCounts[j] + red) / (colorCounts[j] + 1);
+                colorBuckets[j][1] = (colorBuckets[j][1] * colorCounts[j] + green) / (colorCounts[j] + 1);
+                colorBuckets[j][2] = (colorBuckets[j][2] * colorCounts[j] + blue) / (colorCounts[j] + 1);
+                colorCounts[j]++;
+                //foundBucket = j;
+                break;
+            }
+        }
+    }
+
+    // Now find two most contrasting colors
+    float maxDistance = 0.0f;
+    int color1Idx = 0, color2Idx = 0;
+
+    for (int i = 0; i < MAX_COLOR_COUNT; i++)
+    {
+        if (colorCounts[i] == 0) continue;  // Skip empty buckets
+        for (int j = i + 1; j < MAX_COLOR_COUNT; j++)
+        {
+            if (colorCounts[j] == 0) continue;  // Skip empty buckets
+            float dist = colorDistance(colorBuckets[i][0], colorBuckets[i][1], colorBuckets[i][2], colorBuckets[j][0], colorBuckets[j][1], colorBuckets[j][2]);
+            if (dist > maxDistance)
+            {
+                maxDistance = dist;
+                color1Idx = i;
+                color2Idx = j;
+            }
+        }
+    }
+
+    // Set the two contrasting colors
+    *r = colorBuckets[color1Idx][0];
+    *g = colorBuckets[color1Idx][1];
+    *b = colorBuckets[color1Idx][2];
+
+    *r2 = colorBuckets[color2Idx][0];
+    *g2 = colorBuckets[color2Idx][1];
+    *b2 = colorBuckets[color2Idx][2];
+
+    return 0;
+}
+
 
 unsigned char calcAsciiChar(PixelData *p)
 {

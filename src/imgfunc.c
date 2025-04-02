@@ -38,7 +38,8 @@ chafafunc.c
 #endif
 
 #define MACRO_STRLEN(s) (sizeof(s) / sizeof(s[0]))
-#define MAX_COLOR_COUNT 10  // Max number of color clusters to consider
+#define MAX_COLOR_COUNT 256  
+#define MIN_CONTRAST_DISTANCE 25.0f  // Ensure distinct colors
 
 typedef struct
 {
@@ -420,94 +421,108 @@ void checkIfBrightPixel(unsigned char r, unsigned char g, unsigned char b, bool 
         }
 }
 
-float colorDistance(unsigned char r1, unsigned char g1, unsigned char b1, unsigned char r2, unsigned char g2, unsigned char b2)
-{
-    return sqrtf(powf(r1 - r2, 2) + powf(g1 - g2, 2) + powf(b1 - b2, 2));
-}
-
-// Get the most frequent color in the image (simple average approach)
-int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *r2, unsigned char *g2, unsigned char *b2)
-{
-    if (pixels == NULL || width <= 0 || height <= 0)
-    {
-        return -1;
+// Convert RGB to LAB color space
+void rgbToLab(unsigned char r, unsigned char g, unsigned char b, float *L, float *a, float *b_) {
+        float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
+        float x = (rf * 0.4124564 + gf * 0.3575761 + bf * 0.1804375) / 0.95047;
+        float y = (rf * 0.2126729 + gf * 0.7151522 + bf * 0.0721750);
+        float z = (rf * 0.0193339 + gf * 0.1191920 + bf * 0.9503041) / 1.08883;
+    
+        x = (x > 0.008856) ? powf(x, 1.0 / 3.0) : (7.787 * x + 16.0 / 116.0);
+        y = (y > 0.008856) ? powf(y, 1.0 / 3.0) : (7.787 * y + 16.0 / 116.0);
+        z = (z > 0.008856) ? powf(z, 1.0 / 3.0) : (7.787 * z + 16.0 / 116.0);
+    
+        *L = (116.0 * y) - 16.0;
+        *a = 500.0 * (x - y);
+        *b_ = 200.0 * (y - z);
+    }
+    
+    // LAB Color Distance
+    float labColorDistance(float L1, float a1, float b1, float L2, float a2, float b2) {
+        float dL = L1 - L2;
+        float da = a1 - a2;
+        float db = b1 - b2;
+        return sqrtf(dL * dL + da * da + db * db);
     }
 
-    int channels = 4;  // RGBA format
-    int numPixels = width * height;
-
-    // To hold colors (up to MAX_COLOR_COUNT most frequent colors)
-    unsigned char colorBuckets[MAX_COLOR_COUNT][3] = {0};  // RGB
-    int colorCounts[MAX_COLOR_COUNT] = {0};
-
-    // Sampling step: We choose a fraction of pixels to analyze
-    int sampleStep = numPixels / MAX_COLOR_COUNT; 
-
-    for (int i = 0; i < numPixels; i += sampleStep)
-    {
-        int index = i * channels;
-        unsigned char red = pixels[index + 0];
-        unsigned char green = pixels[index + 1];
-        unsigned char blue = pixels[index + 2];
-
-        // Find where to store this color
-        //int foundBucket = -1;
-        for (int j = 0; j < MAX_COLOR_COUNT; j++)
-        {
-            // If this bucket is empty, fill it with this color
-            if (colorCounts[j] == 0)
-            {
-                colorBuckets[j][0] = red;
-                colorBuckets[j][1] = green;
-                colorBuckets[j][2] = blue;
-                colorCounts[j] = 1;
-                //foundBucket = j;
-                break;
-            }
-            // If this color is similar to the bucket, increment its count
-            if (colorDistance(red, green, blue, colorBuckets[j][0], colorBuckets[j][1], colorBuckets[j][2]) < 50.0f)
-            {
-                colorBuckets[j][0] = (colorBuckets[j][0] * colorCounts[j] + red) / (colorCounts[j] + 1);
-                colorBuckets[j][1] = (colorBuckets[j][1] * colorCounts[j] + green) / (colorCounts[j] + 1);
-                colorBuckets[j][2] = (colorBuckets[j][2] * colorCounts[j] + blue) / (colorCounts[j] + 1);
-                colorCounts[j]++;
-                //foundBucket = j;
-                break;
+// Get the dominant color and the closest match to its inverted counterpart
+int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *r2, unsigned char *g2, unsigned char *b2) {
+        if (pixels == NULL || width <= 0 || height <= 0) {
+            return -1;
+        }
+    
+        int channels = 4;  
+        int numPixels = width * height;
+        unsigned char colorBuckets[MAX_COLOR_COUNT][3] = {0};  
+        int colorCounts[MAX_COLOR_COUNT] = {0};
+    
+        int sampleStep = fmaxf(1, numPixels / MAX_COLOR_COUNT);
+    
+        for (int i = 0; i < numPixels; i += sampleStep) {
+            int index = i * channels;
+            unsigned char red = pixels[index + 0];
+            unsigned char green = pixels[index + 1];
+            unsigned char blue = pixels[index + 2];
+    
+            for (int j = 0; j < MAX_COLOR_COUNT; j++) {
+                if (colorCounts[j] == 0) {
+                    colorBuckets[j][0] = red;
+                    colorBuckets[j][1] = green;
+                    colorBuckets[j][2] = blue;
+                    colorCounts[j] = 1;
+                    break;
+                }
             }
         }
-    }
-
-    // Now find two most contrasting colors
-    float maxDistance = 0.0f;
-    int color1Idx = 0, color2Idx = 0;
-
-    for (int i = 0; i < MAX_COLOR_COUNT; i++)
-    {
-        if (colorCounts[i] == 0) continue;  // Skip empty buckets
-        for (int j = i + 1; j < MAX_COLOR_COUNT; j++)
-        {
-            if (colorCounts[j] == 0) continue;  // Skip empty buckets
-            float dist = colorDistance(colorBuckets[i][0], colorBuckets[i][1], colorBuckets[i][2], colorBuckets[j][0], colorBuckets[j][1], colorBuckets[j][2]);
-            if (dist > maxDistance)
-            {
-                maxDistance = dist;
-                color1Idx = i;
-                color2Idx = j;
+    
+        // Find the most frequent color (simplified)
+        int mostFrequentIdx = 0;
+        for (int i = 1; i < MAX_COLOR_COUNT; i++) {
+            if (colorCounts[i] > colorCounts[mostFrequentIdx]) {
+                mostFrequentIdx = i;
             }
         }
+    
+        // Get first color
+        *r = colorBuckets[mostFrequentIdx][0];
+        *g = colorBuckets[mostFrequentIdx][1];
+        *b = colorBuckets[mostFrequentIdx][2];
+    
+        // Invert the color
+        unsigned char invR = 255 - *r;
+        unsigned char invG = 255 - *g;
+        unsigned char invB = 255 - *b;
+    
+        // Convert inverted color to LAB
+        float invL, invA, invBr;
+        rgbToLab(invR, invG, invB, &invL, &invA, &invBr);
+    
+        // Find the closest match to the inverted color
+        float minDistance = FLT_MAX;
+        int bestMatchIdx = 0;
+    
+        for (int i = 0; i < MAX_COLOR_COUNT; i++) {
+            if (colorCounts[i] == 0 || i == mostFrequentIdx) continue; 
+    
+            float L, A, B;
+            rgbToLab(colorBuckets[i][0], colorBuckets[i][1], colorBuckets[i][2], &L, &A, &B);
+            float dist = labColorDistance(invL, invA, invBr, L, A, B);
+    
+            if (dist < minDistance) {
+                minDistance = dist;
+                bestMatchIdx = i;
+            }
+        }
+    
+        // Set the second color
+        *r2 = colorBuckets[bestMatchIdx][0];
+        *g2 = colorBuckets[bestMatchIdx][1];
+        *b2 = colorBuckets[bestMatchIdx][2];
+    
+        return 0;
     }
-
-    // Set the two contrasting colors
-    *r = colorBuckets[color1Idx][0];
-    *g = colorBuckets[color1Idx][1];
-    *b = colorBuckets[color1Idx][2];
-
-    *r2 = colorBuckets[color2Idx][0];
-    *g2 = colorBuckets[color2Idx][1];
-    *b2 = colorBuckets[color2Idx][2];
-
-    return 0;
-}
+    
+    
 
 
 unsigned char calcAsciiChar(PixelData *p)

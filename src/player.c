@@ -290,33 +290,48 @@ void printCover(SongData *songdata, UISettings *ui)
         printf("\n\n");
 }
 
-void printTitleWithDelay(const char *text, int delay, int maxWidth)
-{
+void printTitleWithDelay(const char *text, int delay, int maxWidth) {
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int terminalWidth = w.ws_col;
+    
         int length = strnlen(text, maxWidth);
         int max = (maxWidth > length) ? length : maxWidth;
-        for (int i = 0; i <= max; i++)
-        {
-                printf("\r ");
-                printBlankSpaces(indent);
-                for (int j = 0; j < i; j++)
-                {
-                        printf("%c", text[j]);
-                }
-                printf("█");
-                fflush(stdout);
-
-                if (delay)
-                        c_sleep(delay);
+        int indent = (terminalWidth - max) / 2;
+    
+        for (int i = 0; i <= max; i++) {
+            printf("\r%*s", indent, "");  // Print spaces for centering
+            fwrite(text, 1, i, stdout);  // Print part of the text
+            printf("█");
+            fflush(stdout);
+    
+            if (delay)
+                usleep(delay * 1000);
         }
+    
         if (delay)
-                c_sleep(delay * 20);
-
-        printf("\r");
-        printf("\033[K");
-        printBlankSpaces(indent);
-        printf("\033[1K %.*s", maxWidth, text);
-        printf("\n");
+            usleep(delay * 20000);
+    
+        printf("\r\033[K%*s%.*s\n", indent, "", maxWidth, text);
         fflush(stdout);
+    }
+
+void printCentered(const char *text) {
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);  // Get terminal size
+        int terminalWidth = w.ws_col;
+        int textLength = strlen(text);
+    
+        if (textLength > terminalWidth) {
+            printf("%.*s\n", terminalWidth, text); // Trim if too long
+            return;
+        }
+    
+        if (strnlen(text, METADATA_MAX_LENGTH) > 0) {
+                printf("%*s%s\n", (terminalWidth - textLength) / 2, "", text);
+        } else {
+                printf("\n");   
+        }
 }
 
 void printBasicMetadata(TagSettings const *metadata, UISettings *ui)
@@ -326,32 +341,19 @@ void printBasicMetadata(TagSettings const *metadata, UISettings *ui)
         int maxWidth = textWidth; // term_w - 3 - (indent * 2);
         printf("\n");
 
-        if (strnlen(metadata->artist, METADATA_MAX_LENGTH) > 0)
-        {
-                printBlankSpaces(indent);
-                printf(" %.*s\n", maxWidth, metadata->artist);
-        }
-        else
-        {
-                printf("\n");
-        }
-        if (strnlen(metadata->album, METADATA_MAX_LENGTH) > 0)
-        {
-                printBlankSpaces(indent);
-                printf(" %.*s\n", maxWidth, metadata->album);
-        }
-        else
-        {
-                printf("\n");
-        }
+        printCentered(metadata->artist);
+        printCentered(metadata->album);
         if (strnlen(metadata->date, METADATA_MAX_LENGTH) > 0)
         {
                 printBlankSpaces(indent);
                 int year = getYear(metadata->date);
-                if (year == -1)
-                        printf(" %s\n", metadata->date);
-                else
-                        printf(" %d\n", year);
+                char yearStr[5];  // Safer to define an explicit size
+                snprintf(yearStr, sizeof(yearStr), "%d", year);
+                if (year == -1) {
+                        printCentered(metadata->date);
+                } else {
+                        printCentered(yearStr);
+                }
         }
         else
         {
@@ -1068,7 +1070,7 @@ void resetRadioSearchResult(void)
         chosenRadioSearchResultRow = 0;
 }
 
-void printElapsedBars(int elapsedBars, int numProgressBars, PixelData color, int height, bool useConfigColors)
+void printElapsedBars(int elapsedBars, int numProgressBars, PixelData color, PixelData color2, int height, bool useConfigColors)
 {
         printBlankSpaces(indent);
         printf(" ");
@@ -1079,7 +1081,7 @@ void printElapsedBars(int elapsedBars, int numProgressBars, PixelData color, int
                         // color, filled in.
                         if (!useConfigColors)
                         {
-                                tmp = increaseLuminosity(tmp, (double)(i) / 4);
+                                tmp = mix(color, color2, (float)(i) / numProgressBars);
                                 printf("\033[38;2;%d;%d;%dm", tmp.r, tmp.g, tmp.b);
                         }
                         else
@@ -1115,8 +1117,8 @@ void printVisualizer(double elapsedSeconds, AppState *state)
 #ifndef __APPLE__
                 saveCursorPosition();
 #endif
-                drawSpectrumVisualizer(ui->visualizerHeight, visualizerWidth, ui->color, indent, ui->useConfigColors, ui->visualizerColorType);
-                printElapsedBars(calcElapsedBars(elapsedSeconds, duration, uis->numProgressBars), uis->numProgressBars, ui->color, ui->visualizerHeight, ui->useConfigColors);
+                drawSpectrumVisualizer(ui->visualizerHeight, visualizerWidth, ui->color, ui->color2, indent, ui->useConfigColors, ui->visualizerColorType);
+                printElapsedBars(calcElapsedBars(elapsedSeconds, duration, uis->numProgressBars), uis->numProgressBars, ui->color, ui->color2, ui->visualizerHeight, ui->useConfigColors);
                 printErrorRow();
                 printLastRow(&state->uiSettings);
 #ifndef __APPLE__

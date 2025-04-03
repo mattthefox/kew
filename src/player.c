@@ -1078,7 +1078,7 @@ void printElapsedBars(int elapsedBars, int numProgressBars, PixelData color, Pix
         printBlankSpaces(indent);
         printf(" ");
         PixelData tmp = increaseLuminosity(color, round(height * 4));
-        for (int i = 0; i < numProgressBars; i++)
+        for (int i = 0; i < numProgressBars - 8; i++)
         {
                 if (i == 0 || i < elapsedBars) {
                         // color, filled in.

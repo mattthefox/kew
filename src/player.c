@@ -584,8 +584,41 @@ void printErrorRow(void)
         }
 }
 
-void printLastRow(UISettings *ui)
+void printMenuItem(char *item, int value, int selected, UISettings *ui) {
+        if (selected == value) {
+            printf("\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm %s \033[0m", 
+                   ui->color.r, ui->color.g, ui->color.b, 
+                   ui->color2.r, ui->color2.g, ui->color2.b, item);
+        } else {
+            printf("\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm %s \033[0m", 
+                   ui->color2.r, ui->color2.g, ui->color2.b, 
+                   ui->color.r, ui->color.g, ui->color.b, item);
+        }
+    }
+
+void printLastRow(UISettings *ui, int selected)
 {
+        /* 
+        typedef struct
+        {
+        Cache *tempCache;                               // Cache for temporary files
+        >>>>>ViewState currentView;                          // The current view (playlist, library, track) that kew is on
+        UIState uiState;
+        UISettings uiSettings;
+        } AppState;*/
+
+        /*
+        typedef enum
+        {
+        TRACK_VIEW,
+        KEYBINDINGS_VIEW,
+        PLAYLIST_VIEW,
+        LIBRARY_VIEW,
+        SEARCH_VIEW,
+        RADIOSEARCH_VIEW
+        } ViewState;
+        
+        */
         int term_w, term_h;
         getTermSize(&term_w, &term_h);
         if (term_w < ABSOLUTE_MIN_WIDTH)
@@ -601,7 +634,8 @@ void printLastRow(UISettings *ui)
 #ifdef __APPLE__
         char text[100] = " Sh+Z List|Sh+X Lib|Sh+C Track|Sh+V Search|Sh+B Radio|Sh+N Help";
 #else
-        char text[100] = " [F2 Playlist|F3 Library|F4 Track|F5 Search|F6 Radio|F7 Help]";
+        // Useing alt to navigate between them.
+        char text[100] = " [ Playlist  Library  Track  Search  Radio  Help]";
 #endif
 
         char nerdFontText[100] = "";
@@ -676,7 +710,13 @@ void printLastRow(UISettings *ui)
         else
         {
                 printBlankSpaces(indent);
-                printf("%s", text);
+                // Menu Bar
+                printMenuItem(" Playlist", PLAYLIST_VIEW, selected, ui);
+                printMenuItem(" Library", LIBRARY_VIEW, selected, ui);
+                printMenuItem(" Track", TRACK_VIEW, selected, ui);
+                printMenuItem(" Search", SEARCH_VIEW, selected, ui);
+                printMenuItem(" Radio", RADIOSEARCH_VIEW, selected, ui);
+                printMenuItem(" Help", 6, selected, ui);
                 printf("%s", nerdFontText);
         }
 }
@@ -765,7 +805,7 @@ int showKeyBindings(SongData *songdata, AppSettings *settings, UISettings *ui)
         }
 
         printErrorRow();
-        printLastRow(ui);
+        printLastRow(ui, 6);
         numPrintedRows++;
 
         return numPrintedRows;
@@ -1012,7 +1052,7 @@ void showSearch(SongData *songData, int *chosenRow, UISettings *ui)
         displaySearch(maxSearchListSize, indent, chosenRow, startSearchIter, ui);
 
         printErrorRow();
-        printLastRow(ui);
+        printLastRow(ui, 4);
 }
 
 void showRadioSearch(SongData *songData, int *chosenRow, UISettings *ui)
@@ -1036,7 +1076,7 @@ void showRadioSearch(SongData *songData, int *chosenRow, UISettings *ui)
         displayRadioSearch(maxRadioSearchListSize, indent, chosenRow, startSearchIter, ui);
 
         printErrorRow();
-        printLastRow(ui);
+        printLastRow(ui, 5);
 }
 
 void showPlaylist(SongData *songData, PlayList *list, int *chosenSong, int *chosenNodeId, AppState *state)
@@ -1060,7 +1100,7 @@ void showPlaylist(SongData *songData, PlayList *list, int *chosenSong, int *chos
         displayPlaylist(list, maxListSize, indent, chosenSong, chosenNodeId, state->uiState.resetPlaylistDisplay, state);
 
         printErrorRow();
-        printLastRow(&state->uiSettings);
+        printLastRow(&state->uiSettings, 2);
 }
 
 void resetSearchResult(void)
@@ -1078,7 +1118,7 @@ void printElapsedBars(int elapsedBars, int numProgressBars, PixelData color, Pix
         printBlankSpaces(indent);
         printf(" ");
         PixelData tmp = increaseLuminosity(color, round(height * 4));
-        for (int i = 0; i < numProgressBars - 8; i++)
+        for (int i = 0; i < numProgressBars; i++)
         {
                 if (i == 0 || i < elapsedBars) {
                         // color, filled in.
@@ -1123,7 +1163,7 @@ void printVisualizer(double elapsedSeconds, AppState *state)
                 drawSpectrumVisualizer(ui->visualizerHeight, visualizerWidth, ui->color, ui->color2, indent, ui->useConfigColors, ui->visualizerColorType);
                 printElapsedBars(calcElapsedBars(elapsedSeconds, duration, uis->numProgressBars), uis->numProgressBars, ui->color, ui->color2, ui->visualizerHeight, ui->useConfigColors);
                 printErrorRow();
-                printLastRow(&state->uiSettings);
+                printLastRow(&state->uiSettings, 0);
 #ifndef __APPLE__
                 restoreCursorPosition();
                 cursorJump(1);
@@ -1140,7 +1180,7 @@ void printVisualizer(double elapsedSeconds, AppState *state)
                         printf("\n");
                         printErrorRow();
                         saveCursorPosition();
-                        printLastRow(ui);
+                        printLastRow(ui, 0);
                         restoreCursorPosition();
                         cursorJump(2);
 #else
@@ -1149,7 +1189,7 @@ void printVisualizer(double elapsedSeconds, AppState *state)
                         restoreCursorPosition();
                         printf("\n");
                         saveCursorPosition();
-                        printLastRow(ui);
+                        printLastRow(ui, 0);
                         restoreCursorPosition();
                         cursorJump(1);
 #endif
@@ -1543,7 +1583,7 @@ void showLibrary(SongData *songData, AppState *state)
         }
 
         printErrorRow();
-        printLastRow(ui);
+        printLastRow(ui, 3);
 
         if (refresh)
         {

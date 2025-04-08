@@ -38,8 +38,8 @@ chafafunc.c
 #endif
 
 #define MACRO_STRLEN(s) (sizeof(s) / sizeof(s[0]))
-#define MAX_COLOR_COUNT 256  
-#define MIN_CONTRAST_DISTANCE 25.0f  // Ensure distinct colors
+#define CHANNELS 4
+#define MAX_COLOR_PAIRS 5
 
 typedef struct
 {
@@ -421,106 +421,94 @@ void checkIfBrightPixel(unsigned char r, unsigned char g, unsigned char b, bool 
         }
 }
 
-// Convert RGB to LAB color space
-void rgbToLab(unsigned char r, unsigned char g, unsigned char b, float *L, float *a, float *b_) {
-        float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
-        float x = (rf * 0.4124564 + gf * 0.3575761 + bf * 0.1804375) / 0.95047;
-        float y = (rf * 0.2126729 + gf * 0.7151522 + bf * 0.0721750);
-        float z = (rf * 0.0193339 + gf * 0.1191920 + bf * 0.9503041) / 1.08883;
-    
-        x = (x > 0.008856) ? powf(x, 1.0 / 3.0) : (7.787 * x + 16.0 / 116.0);
-        y = (y > 0.008856) ? powf(y, 1.0 / 3.0) : (7.787 * y + 16.0 / 116.0);
-        z = (z > 0.008856) ? powf(z, 1.0 / 3.0) : (7.787 * z + 16.0 / 116.0);
-    
-        *L = (116.0 * y) - 16.0;
-        *a = 500.0 * (x - y);
-        *b_ = 200.0 * (y - z);
-    }
-    
-    // LAB Color Distance
-    float labColorDistance(float L1, float a1, float b1, float L2, float a2, float b2) {
-        float dL = L1 - L2;
-        float da = a1 - a2;
-        float db = b1 - b2;
-        return sqrtf(dL * dL + da * da + db * db);
+int colorDistanceSq(unsigned char r1, unsigned char g1, unsigned char b1,
+                    unsigned char r2, unsigned char g2, unsigned char b2) {
+    int dr = r1 - r2;
+    int dg = g1 - g2;
+    int db = b1 - b2;
+    return dr * dr + dg * dg + db * db;
+}
+
+float brightness(unsigned char r, unsigned char g, unsigned char b) {
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
+
+int getCoverColor(unsigned char *pixels, int width, int height,
+                  unsigned char *r, unsigned char *g, unsigned char *b,
+                  unsigned char *r2, unsigned char *g2, unsigned char *b2) {
+
+    if (!pixels || width <= 0 || height <= 0) {
+        return -1;
     }
 
-// Get the dominant color and the closest match to its inverted counterpart
-int getCoverColor(unsigned char *pixels, int width, int height, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *r2, unsigned char *g2, unsigned char *b2) {
-        if (pixels == NULL || width <= 0 || height <= 0) {
-            return -1;
-        }
-    
-        int channels = 4;  
-        int numPixels = width * height;
-        unsigned char colorBuckets[MAX_COLOR_COUNT][3] = {0};  
-        int colorCounts[MAX_COLOR_COUNT] = {0};
-    
-        int sampleStep = fmaxf(1, numPixels / MAX_COLOR_COUNT);
-    
-        for (int i = 0; i < numPixels; i += sampleStep) {
-            int index = i * channels;
-            unsigned char red = pixels[index + 0];
-            unsigned char green = pixels[index + 1];
-            unsigned char blue = pixels[index + 2];
-    
-            for (int j = 0; j < MAX_COLOR_COUNT; j++) {
-                if (colorCounts[j] == 0) {
-                    colorBuckets[j][0] = red;
-                    colorBuckets[j][1] = green;
-                    colorBuckets[j][2] = blue;
-                    colorCounts[j] = 1;
-                    break;
-                }
+    // Define primitive/inverted color pairs
+    PixelData primitivePairs[MAX_COLOR_PAIRS][2] = {
+        {{255, 0, 0},     {0, 255, 255}},   // Red ↔ Cyan
+        {{0, 255, 0},     {255, 0, 255}},   // Green ↔ Magenta
+        {{0, 0, 255},     {255, 255, 0}},   // Blue ↔ Yellow
+        {{255, 165, 0},   {0, 90, 255}},    // Orange ↔ Teal
+        {{128, 0, 128},   {128, 255, 0}}    // Purple ↔ Lime
+    };
+
+    int numPixels = width * height;
+    int bestPairIndex = -1;
+    float bestTotalDistance = FLT_MAX;
+
+    PixelData bestMatchA = {0};
+    PixelData bestMatchB = {0};
+
+    for (int pair = 0; pair < MAX_COLOR_PAIRS; pair++) {
+        PixelData p1 = primitivePairs[pair][0];
+        PixelData p2 = primitivePairs[pair][1];
+
+        float minDist1 = FLT_MAX;
+        float minDist2 = FLT_MAX;
+
+        PixelData closest1 = {0};
+        PixelData closest2 = {0};
+
+        for (int i = 0; i < numPixels; i++) {
+            int index = i * CHANNELS;
+            unsigned char pr = pixels[index];
+            unsigned char pg = pixels[index + 1];
+            unsigned char pb = pixels[index + 2];
+
+            int dist1 = colorDistanceSq(pr, pg, pb, p1.r, p1.g, p1.b);
+            int dist2 = colorDistanceSq(pr, pg, pb, p2.r, p2.g, p2.b);
+
+            if (dist1 < minDist1) {
+                minDist1 = dist1;
+                closest1 = (PixelData){pr, pg, pb};
+            }
+            if (dist2 < minDist2) {
+                minDist2 = dist2;
+                closest2 = (PixelData){pr, pg, pb};
             }
         }
-    
-        // Find the most frequent color (simplified)
-        int mostFrequentIdx = 0;
-        for (int i = 1; i < MAX_COLOR_COUNT; i++) {
-            if (colorCounts[i] > colorCounts[mostFrequentIdx]) {
-                mostFrequentIdx = i;
-            }
+
+        float total = minDist1 + minDist2;
+        if (total < bestTotalDistance) {
+            bestTotalDistance = total;
+            bestPairIndex = pair;
+            bestMatchA = closest1;
+            bestMatchB = closest2;
         }
-    
-        // Get first color
-        *r = colorBuckets[mostFrequentIdx][0];
-        *g = colorBuckets[mostFrequentIdx][1];
-        *b = colorBuckets[mostFrequentIdx][2];
-    
-        // Invert the color
-        unsigned char invR = 255 - *r;
-        unsigned char invG = 255 - *g;
-        unsigned char invB = 255 - *b;
-    
-        // Convert inverted color to LAB
-        float invL, invA, invBr;
-        rgbToLab(invR, invG, invB, &invL, &invA, &invBr);
-    
-        // Find the closest match to the inverted color
-        float minDistance = FLT_MAX;
-        int bestMatchIdx = 0;
-    
-        for (int i = 0; i < MAX_COLOR_COUNT; i++) {
-            if (colorCounts[i] == 0 || i == mostFrequentIdx) continue; 
-    
-            float L, A, B;
-            rgbToLab(colorBuckets[i][0], colorBuckets[i][1], colorBuckets[i][2], &L, &A, &B);
-            float dist = labColorDistance(invL, invA, invBr, L, A, B);
-    
-            if (dist < minDistance) {
-                minDistance = dist;
-                bestMatchIdx = i;
-            }
-        }
-    
-        // Set the second color
-        *r2 = colorBuckets[bestMatchIdx][0];
-        *g2 = colorBuckets[bestMatchIdx][1];
-        *b2 = colorBuckets[bestMatchIdx][2];
-    
-        return 0;
     }
+
+    float brightA = brightness(bestMatchA.r, bestMatchA.g, bestMatchA.b);
+    float brightB = brightness(bestMatchB.r, bestMatchB.g, bestMatchB.b);
+
+    if (brightA >= brightB) {
+        *r = bestMatchA.r; *g = bestMatchA.g; *b = bestMatchA.b;
+        *r2 = bestMatchB.r; *g2 = bestMatchB.g; *b2 = bestMatchB.b;
+    } else {
+        *r = bestMatchB.r; *g = bestMatchB.g; *b = bestMatchB.b;
+        *r2 = bestMatchA.r; *g2 = bestMatchA.g; *b2 = bestMatchA.b;
+    }
+
+    return 0;
+}
+
     
     
 

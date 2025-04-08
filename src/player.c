@@ -586,15 +586,28 @@ void printErrorRow(void)
 
 void printMenuItem(char *item, int value, int selected, UISettings *ui) {
         if (selected == value) {
-            printf("\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm %s \033[0m", 
-                   ui->color.r, ui->color.g, ui->color.b, 
-                   ui->color2.r, ui->color2.g, ui->color2.b, item);
+            // Selected item: outer symbols use primary background, inner text uses secondary background
+            printf("\033[38;2;%d;%d;%dm"                // Left rounded symbol
+                   "\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm %s "  // Text with bg/fg
+                   "\033[0m\033[38;2;%d;%d;%dm\033[0m",   // Right rounded symbol
+                   ui->color.r, ui->color.g, ui->color.b,
+                   ui->color.r, ui->color.g, ui->color.b,
+                   ui->color2.r, ui->color2.g, ui->color2.b,
+                   item,
+                   ui->color.r, ui->color.g, ui->color.b);
         } else {
-            printf("\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm %s \033[0m", 
-                   ui->color2.r, ui->color2.g, ui->color2.b, 
-                   ui->color.r, ui->color.g, ui->color.b, item);
+            // Unselected item: outer symbols use secondary background, inner text uses primary background
+            printf("\033[38;2;%d;%d;%dm"                // Left rounded symbol
+                   "\033[48;2;%d;%d;%dm\033[38;2;%d;%d;%dm %s "  // Text with bg/fg
+                   "\033[0m\033[38;2;%d;%d;%dm\033[0m",   // Right rounded symbol
+                   ui->color2.r, ui->color2.g, ui->color2.b,
+                   ui->color2.r, ui->color2.g, ui->color2.b,
+                   ui->color.r, ui->color.g, ui->color.b,
+                   item,
+                   ui->color2.r, ui->color2.g, ui->color2.b);
         }
     }
+    
 
 void printLastRow(UISettings *ui, int selected)
 {

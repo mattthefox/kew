@@ -724,7 +724,7 @@ void printLastRow(UISettings *ui, int selected)
         {
                 printBlankSpaces(indent);
                 // Menu Bar
-                printMenuItem(" Playlist", PLAYLIST_VIEW, selected, ui);
+                printMenuItem(" Queue", PLAYLIST_VIEW, selected, ui);
                 printMenuItem(" Library", LIBRARY_VIEW, selected, ui);
                 printMenuItem(" Track", TRACK_VIEW, selected, ui);
                 printMenuItem(" Search", SEARCH_VIEW, selected, ui);

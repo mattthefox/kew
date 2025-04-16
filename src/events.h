@@ -46,7 +46,8 @@ enum EventType
         EVENT_MOVESONGUP,
         EVENT_MOVESONGDOWN,
         EVENT_ENQUEUEANDPLAY,
-        EVENT_STOP
+        EVENT_STOP,
+        EVENT_PLAYNEXT
 };
 
 struct Event

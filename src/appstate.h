@@ -89,6 +89,7 @@ typedef struct
 } AppState;
 
 static const unsigned char defaultColor = 150;
+static const unsigned char defaultColor2 = 255;
 
 #ifndef KEYVALUEPAIR_STRUCT
 #define KEYVALUEPAIR_STRUCT
@@ -199,6 +200,7 @@ typedef struct
         char moveSongDown[6];
         char enqueueAndPlay[6];
         char stop[6];
+        char moveSongAfterCurrent[6];
 } AppSettings;
 
 #endif

@@ -125,6 +125,7 @@ AppSettings constructAppSettings(KeyValuePair *pairs, int count)
         c_strcpy(settings.quit, "q", sizeof(settings.quit));
         c_strcpy(settings.hardQuit, "\x1B", sizeof(settings.hardQuit));
         c_strcpy(settings.hardClearPlaylist, "\b", sizeof(settings.hardClearPlaylist));
+        c_strcpy(settings.moveSongAfterCurrent, "n", sizeof(settings.moveSongAfterCurrent));
 
 
         if (pairs == NULL)
@@ -525,6 +526,7 @@ void mapSettingsToKeys(AppSettings *settings, UISettings *ui, EventMapping *mapp
         mappings[60] = (EventMapping){settings->moveSongDown, EVENT_MOVESONGDOWN};
         mappings[61] = (EventMapping){settings->enqueueAndPlay, EVENT_ENQUEUEANDPLAY};
         mappings[62] = (EventMapping){settings->stop, EVENT_STOP};
+        mappings[63] = (EventMapping){settings->moveSongAfterCurrent, EVENT_PLAYNEXT};
 }
 
 char *getConfigFilePath(char *configdir)

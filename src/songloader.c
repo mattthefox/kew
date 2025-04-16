@@ -1,5 +1,7 @@
 #include "songloader.h"
 #include "stb_image.h"
+#include <stdio.h>
+
 /*
 
 songloader.c
@@ -76,10 +78,15 @@ gchar *generateTrackId(void)
         return trackId;
 }
 
+
 void loadColor(SongData *songdata)
 {
-        getCoverColor(songdata->cover, songdata->coverWidth, songdata->coverHeight, &(songdata->red), &(songdata->green), &(songdata->blue), &(songdata->red2), &(songdata->green2), &(songdata->blue2));
+    getCoverColor(songdata->cover, songdata->coverWidth, songdata->coverHeight,
+                  &(songdata->red), &(songdata->green), &(songdata->blue),
+                  &(songdata->red2), &(songdata->green2), &(songdata->blue2));
+
 }
+
 
 void loadMetaData(SongData *songdata, AppState *state)
 {
@@ -135,9 +142,9 @@ SongData *loadSongData(char *filePath, AppState *state)
         songdata->green = defaultColor;
         songdata->blue = defaultColor;
         // color 2
-        songdata->red2 = defaultColor;
-        songdata->green2 = defaultColor;
-        songdata->blue2 = defaultColor;
+        songdata->red2 = defaultColor2;
+        songdata->green2 = defaultColor2;
+        songdata->blue2 = defaultColor2;
         songdata->metadata = NULL;
         songdata->cover = NULL;
         songdata->duration = 0.0;

@@ -1003,6 +1003,85 @@ void moveSongDown()
         refresh = true;
 }
 
+void moveSongAfterCurrent()
+{
+        if (appState.currentView != PLAYLIST_VIEW)
+        {
+                return;
+        }
+
+        bool rebuild = false;
+
+        int chosenRow = getChosenRow();
+        Node *node = findSelectedEntry(originalPlaylist, chosenRow);
+
+        if (node == NULL || currentSong == NULL)
+        {
+                return;
+        }
+
+        int id = node->id;
+
+        pthread_mutex_lock(&(playlist.mutex));
+
+        // Check if moving this node would impact current or next playback
+        if (node != NULL && nextSong != NULL && currentSong != NULL)
+        {
+                Node *temp = currentSong;
+
+                for (int i = 0; i < 3; i++)
+                {
+                        if (temp == NULL)
+                                break;
+
+                        if (temp->id == id)
+                        {
+                                rebuild = true;
+                                break;
+                        }
+                        temp = temp->next;
+                }
+        }
+
+        // Move node in originalPlaylist after currentSong
+        if (node != currentSong->next)
+                insertAfterCurrent(node, currentSong, originalPlaylist);
+
+        // Move the matching node in playlist if shuffle is disabled
+        if (!isShuffleEnabled())
+        {
+                Node *plNode = findSelectedEntryById(&playlist, id);
+                if (plNode != NULL && plNode != currentSong->next)
+                        insertAfterCurrent(plNode, currentSong, &playlist);
+        }
+
+        // Update chosenRow to match new position visually
+        int row = 0;
+        Node *iter = originalPlaylist->head;
+        while (iter != NULL)
+        {
+                if (iter->id == id)
+                        break;
+                iter = iter->next;
+                row++;
+        }
+        setChosenRow(row);
+
+        if (rebuild && currentSong != NULL)
+        {
+                tryNextSong = currentSong->next;
+                nextSongNeedsRebuilding = false;
+                nextSong = getListNext(currentSong);
+                rebuildNextSong(nextSong);
+                loadedNextSong = true;
+        }
+
+        pthread_mutex_unlock(&(playlist.mutex));
+
+        refresh = true;
+}
+
+
 void dequeueSong(FileSystemEntry *child)
 {
         Node *node1 = findLastPathInPlaylist(child->fullPath, originalPlaylist);

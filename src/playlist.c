@@ -252,6 +252,55 @@ void insertAsFirst(Node *currentSong, PlayList *playlist)
         }
 }
 
+void insertAfterCurrent(Node *currentSong, Node *nowPlaying, PlayList *playlist)
+{
+        if (currentSong == NULL || nowPlaying == NULL || playlist == NULL || currentSong == nowPlaying)
+        {
+                return;
+        }
+
+        if (nowPlaying->next == currentSong)
+        {
+                return; // already in correct position
+        }
+
+        // Detach currentSong from current position
+        if (currentSong->next != NULL)
+        {
+                currentSong->next->prev = currentSong->prev;
+        }
+        else
+        {
+                playlist->tail = currentSong->prev;
+        }
+
+        if (currentSong->prev != NULL)
+        {
+                currentSong->prev->next = currentSong->next;
+        }
+        else
+        {
+                playlist->head = currentSong->next;
+        }
+
+        // Insert after nowPlaying
+        Node *after = nowPlaying->next;
+
+        currentSong->next = after;
+        currentSong->prev = nowPlaying;
+        nowPlaying->next = currentSong;
+
+        if (after != NULL)
+        {
+                after->prev = currentSong;
+        }
+        else
+        {
+                playlist->tail = currentSong;
+        }
+}
+
+
 void shufflePlaylistStartingFromSong(PlayList *playlist, Node *song)
 {
         shufflePlaylist(playlist);

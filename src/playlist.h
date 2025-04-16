@@ -60,6 +60,8 @@ void createNode(Node **node, const char *directoryPath, int id);
 
 void addToList(PlayList *list, Node *newNode);
 
+void insertAfterCurrent(Node *currentSong, Node *nowPlaying, PlayList *playlist);
+
 Node *deleteFromList(PlayList *list, Node *node);
 
 void deletePlaylist(PlayList *playlist);

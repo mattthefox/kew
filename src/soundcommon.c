@@ -17,7 +17,7 @@ soundcommon.c
 
 bool repeatEnabled = false;
 bool repeatListEnabled = false;
-bool shuffleEnabled = false;
+bool shuffleEnabled = true;
 bool skipToNext = false;
 bool seekRequested = false;
 bool paused = false;

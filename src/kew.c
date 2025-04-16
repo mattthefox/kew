@@ -847,6 +847,9 @@ void handleInput(AppState *state)
         case EVENT_MOVESONGDOWN:
                 moveSongDown();
                 break;
+        case EVENT_PLAYNEXT:
+                moveSongAfterCurrent();
+                break;
         case EVENT_ENQUEUEANDPLAY:
                 enqueueAndPlay(state);
                 break;
